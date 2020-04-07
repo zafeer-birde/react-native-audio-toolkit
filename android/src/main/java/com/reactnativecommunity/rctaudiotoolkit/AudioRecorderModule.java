@@ -35,6 +35,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements
 
     Map<Integer, MediaRecorder> recorderPool = new HashMap<>();
     Map<Integer, Boolean> recorderAutoDestroy = new HashMap<>();
+    Map<Integer, Boolean> recorderPaused = new HashMap<>();
 
     private ReactApplicationContext context;
 
@@ -149,6 +150,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements
             recorder.release();
             this.recorderPool.remove(recorderId);
             this.recorderAutoDestroy.remove(recorderId);
+            this.recorderPaused.remove(recorderId);
 
             WritableMap data = new WritableNativeMap();
             data.putString("message", "Destroyed recorder");
@@ -232,6 +234,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements
         }
 
         this.recorderAutoDestroy.put(recorderId, autoDestroy);
+        this.recorderPaused.put(recorderId, false);
 
         try {
             recorder.prepare();
@@ -251,7 +254,12 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements
         }
 
         try {
-            recorder.start();
+            if (this.recorderPaused.get(recorderId)) {
+                recorder.resume();
+                this.recorderPaused.put(recorderId, false);
+            } else {
+                recorder.start();
+            }
 
             callback.invoke();
         } catch (Exception e) {
@@ -299,10 +307,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements
 
         try {
             recorder.pause();
-            if (this.recorderAutoDestroy.get(recorderId)) {
-                Log.d(LOG_TAG, "Autodestroying recorder...");
-                destroy(recorderId);
-            }
+            this.recorderPaused.put(recorderId, true);
             callback.invoke();
         } catch (Exception e) {
             callback.invoke(errObj("stopfail", e.toString()));
